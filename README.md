@@ -13,91 +13,129 @@ The supplier's data feed is notoriously unreliable. It contains inconsistencies,
 * `data/supplier_feed.csv`: The raw, messy data from the new supplier.
 * `data/product_metadata.csv`: Maps the supplier's parts to our internal system.
 
-## Data Cleaning and Transformation
 
-* This section documents the data exploration, cleaning, and transformation steps applied to the supplier feed.  
-* The initial examination was performed in a Jupyter notebook to identify issues, and the final cleaning logic was implemented in **`src/transform_data.py`** to ensure automation and reproducibility.
+## 1. Data Exploration
 
-* ## 1. Data Exploration
-    Before writing the transformation script, the dataset was analyzed to identify potential flaws such as:
+Before cleaning, the data was checked for:
 
-    - Missing or inconsistent values in `cost_price`, `entry_date`, or `stock_level`
-    - Mixed numeric formats (e.g., `$25.00` vs. `25.00`)
-    - Non-uniform date formats (ISO, US, and text-based)
-    - Text-based stock levels such as `"Low Stock"` or `"Unavailable"`
-    - Possible duplicate rows
+- Missing or inconsistent values in `cost_price`, `entry_date`, and `stock_level`
+- Mixed formats (e.g., `$25.00` vs `25.00`)
+- Multiple date formats (e.g., `2023-10-01`, `10/01/23`, `October 1, 2023`)
+- Text-based stock levels such as `"Low Stock"` or `"Unavailable"`
+- Duplicate rows
 
-    Although the current version of the dataset does not include missing values or duplicates, these checks were necessary to design a robust transformation process that can handle future data inconsistencies safely.
+Although the provided dataset had no major issues, these checks ensure the script can handle new or inconsistent supplier data in the future.
 
-* ## 2. Handling Missing and Duplicate Values
-    - **Duplicates:**  
-    Duplicate rows were removed to ensure data integrity.
-    - **Missing `cost_price`:**  
-    Missing price values were replaced with the average price of the same `product_id`, maintaining internal consistency across products.
-    - **Missing `stock_level`:**  
-    Missing stock levels were filled with `-1`, representing an unknown or unavailable stock status.
-    This approach ensures the data remains complete, even if future supplier feeds contain gaps or duplicated entries.
+---
 
-* ## 3. Cleaning `cost_price`
-    The `cost_price` column appeared in two different formats — some values contained a dollar sign (e.g., `$23.5`), while others were numeric.  
-    All dollar signs were removed, and values were standardized to a consistent numeric format.  
-    This ensures accurate aggregation, comparison, and downstream processing.
+## 2. Data Cleaning
 
+### Duplicates
+- Removed duplicate rows to keep unique records.
 
-* ## 4. Standardizing `entry_date`
-    The `entry_date` field contained several inconsistent date formats such as `2023-10-01`, `10/01/23`, and `October 1, 2023`.  
-    All valid dates were converted into a single standardized datetime format.  
-    Entries that could not be parsed or were missing were left as `NaT` (Not a Time).  
+### Missing Values
+- **`cost_price`** → replaced missing values with the average price for the same `part_id`.
+- **`stock_level`** → replaced missing values with `-1` to mark unknown or unavailable items.
 
-This guarantees that all date values follow a consistent and machine-readable structure.
+### Cleaning `cost_price`
+- Removed dollar signs and converted all prices to numeric values.0`
 
-* ## 5. Normalizing `stock_level`
-    The `stock_level` column included mixed text and numeric representations.  
-    Text-based entries were mapped to consistent numeric codes to simplify analysis and modeling.
+### Standardizing `entry_date`
+- Converted all date formats to a single consistent format.
+- Unrecognized or missing dates were stored as `NaT`.
 
-    | Original Label           | Mapped Value | Meaning / Rationale |
-    |---------------------------|--------------|----------------------|
-    | `Low Stock` / `Low`       | **1**        | Limited availability but not zero. |
-    | `Out of Stock`            | **0**        | Product currently unavailable. |
-    | `Unavailable`             | **-1**       | Status undefined or not available for sale. |
-    | Missing values            | **-1**       | Treated consistently as unavailable. |
+### Normalizing `stock_level`
+Mapped all text values to numbers for easier analysis:
 
-    This mapping clearly differentiates between low stock, no stock, and unknown/unavailable statuses.
-
-* ## 6. Final Output
-    After transformation:
-
-    - All prices are clean and numeric.  
-    - All dates follow a consistent datetime format.  
-    - All stock levels are standardized to integer codes.  
-    - No duplicates or unhandled missing values remain.  
-
-    The resulting dataset is now consistent, reliable, and ready for loading into the next stage of the ETL pipeline or database integration.
+| Original Value | Mapped Value | Meaning |
+|----------------|--------------|----------|
+| Low / Low Stock | 1 | Product available but limited |
+| Out of Stock | 0 | Product unavailable |
+| Unavailable or Missing | -1 | Unknown or not provided |
 
 
-2.  **Load:**
-    * Create a simple SQLite database (`parts_avatar.db`).
-    * Load the cleaned supplier data and the product metadata into two separate tables in the database. Ensure the data types are correct and consider setting up primary keys.
+**Justification:**  
+The `stock_level` column contained both numeric and text-based values, which made analysis inconsistent.  
+Converting all entries to numeric values creates a uniform and interpretable scale where larger numbers indicate greater availability.  
 
-3.  **Analyze & Visualize:**
-    * Write a Python script or a Jupyter Notebook to query the SQLite database and answer the following business questions:
-        * What is the average cost price per product category?
-        * Which top 5 parts have the highest stock levels right now?
-        * How has the number of new parts entries from this supplier changed over time (on a monthly basis)?
-    * Create at least two clear and informative visualizations (e.g., using Matplotlib, Seaborn, or Plotly) to present your findings.
+- **`1` ("Low Stock")** → Item is still available, so it's considered a positive stock condition.  
+- **`0` ("Out of Stock")** → Represents no inventory, but a valid product listing.  
+- **`-1` ("Unavailable" or missing)** → Marks unknown or missing information, separating it from an actual zero stock.  
 
-4.  **Documentation:**
-    * Update this `README.md` file to be a comprehensive report of your project.
-    * Explain your data cleaning strategies and justify your decisions.
-    * Describe the schema of your database tables.
-    * Present your findings from the analysis, including the visualizations you created.
-    * Provide clear instructions on how to run your entire pipeline from start to finish.
+This numeric mapping (`-1 < 0 < 1`) simplifies filtering, aggregation, and visualization while preserving the real-world meaning of availability levels.
 
-## Evaluation Criteria
-* **Problem-Solving:** The logic and justification behind your data cleaning and transformation decisions.
-* **Python & SQL Proficiency:** The quality, efficiency, and organization of your code.
-* **Data Engineering Concepts:** The structure and robustness of your ETL pipeline.
-* **Data Visualization & Communication:** The clarity and impact of your analysis and visualizations in the README report.
+---
 
-## Disclaimer: Data and Evaluation Criteria
-Please be advised that the datasets utilized in this project are synthetically generated and intended for illustrative purposes only. Furthermore, they have been significantly reduced in terms of sample size and the number of features to streamline the exercise. They do not represent or correspond to any actual business data. The primary objective of this evaluation is to assess the problem-solving methodology and the strategic approach employed, not necessarily the best possible tailored solution for the data. 
+## 3. Database Schema
+
+Created a local SQLite database: `parts_avatar.db`.
+
+### Table: `supplier_feed`
+| Column | Type | Description |
+|--------|------|-------------|
+| part_id | TEXT | Primary key |
+| stock_level | INTEGER | Cleaned numeric stock value |
+| cost_price | REAL | Numeric price |
+| entry_date | TEXT | Standardized date |
+
+### Table: `product_metadata`
+| Column | Type | Description |
+|--------|------|-------------|
+| part_id | TEXT | Primary key |
+| part_name | TEXT | Product name |
+| category | TEXT | Product category |
+
+Both tables are joined using `part_id`.
+
+---
+
+
+## 4. Analysis & Findings
+
+### Average Cost Price per Category
+- Average prices are consistent across categories (~$225–$230).
+- Indicates uniform pricing and stable sourcing.
+
+<p align="center">
+    <img src="fig/avg_cost_by_category.png" alt="Average cost by category" width="400">
+</p>
+<p align="center"><em>Figure 1. Average cost price per category</em></p>
+
+### Top 5 Parts by Stock Level
+- Top parts: **SP-450, SP-475, SP-225, SP-427, SP-333** (~500 units each).
+- Prices vary widely ($50–$450), showing different capital investments per item.
+
+<p align="center">
+  <img src="fig/top5_stock_level.png" alt="Top 5 Parts by Stock Level" width="450">
+  <img src="fig/stock_cost_category.png" alt="Stock vs Cost by Category" width="350">
+</p>
+<p align="center"><em>Figure 2. Stock level distribution and cost comparison across categories</em></p>
+
+
+### Monthly New Entries
+- Around **220–240 new parts** added per month on average.
+- **Brakes** and **Electronics** categories show the most frequent updates.
+- Stable trend overall, showing predictable supplier activity.
+
+<p align="center">
+  <img src="fig/monthly_entries.png" alt="Monthly New Entries (Overall)" width="650">
+  <img src="fig/monthly_entries_category.png" alt="Monthly New Entries per Category" width="650">
+</p>
+<p align="center"><em>Figure 3. Monthly new part entries (overall and by category)</em></p>
+
+## 6. How to Run
+
+```bash
+# Create environment
+conda create -n data_env python=3.10 -y
+conda activate data_env
+pip install -r requirements.txt
+
+# Run data cleaning
+python src/transform_data.py
+
+# Run database creating
+python src/create_db.py
+
+# to see the visualization result
+jupyter notebook notebooks/analyze_visualize.ipynb
